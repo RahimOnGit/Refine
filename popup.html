@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Text Refiner – Settings</title>
+  <style>
+    body {font-family: Arial, sans-serif; width:260px; padding:10px;}
+    label {display:block; margin-bottom:5px;}
+    input[type="password"] {width:100%; padding:5px; box-sizing:border-box;}
+    button {margin-top:10px; padding:5px 10px;}
+    #status {margin-top:8px; font-size:0.9em; color:green;}
+  </style>
+</head>
+<body>
+  <h3>OpenAI API Key</h3>
+  <label for="apiKey">Enter your API key:</label>
+  <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+  <button id="saveBtn">Save</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
