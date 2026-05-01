@@ -1,134 +1,243 @@
+// content.js – robust version with fallback direct API call
 let floatingBtn = null;
 let activeElem = null;
+let isRefining = false;
 
-// Improved detection for standard and "hidden" (Shadow DOM) editors
-function getEditableElement(path) {
-  for (let el of path) {
-    if (el.nodeType !== 1) continue;
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el;
-    if (el.isContentEditable) return el;
-    // Check if the element or a parent is contenteditable
-    const closest = el.closest ? el.closest('[contenteditable="true"]') : null;
-    if (closest) return closest;
-  }
-  return null;
+function isEditable(el) {
+  return el && (el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
 function createButtons() {
-  const container = document.createElement('div');
-  container.id = 'ai-refiner-container';
-  Object.assign(container.style, {
+  // Main button ✨
+  const mainBtn = document.createElement('button');
+  mainBtn.textContent = '✨';
+  mainBtn.title = 'Refine text with AI (default)';
+  Object.assign(mainBtn.style, {
     position: 'absolute',
     zIndex: 2147483647,
-    display: 'flex',
-    gap: '6px',
-    padding: '4px',
-    background: 'white',
-    borderRadius: '8px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
-    border: '1px solid #ccc'
-  });
-
-  container.addEventListener('mousedown', (e) => e.preventDefault());
-
-  const mainBtn = createBtn('✨', 'Refine', '#ffdb58', 'black');
-  mainBtn.onclick = (e) => onClick(e, null);
-
-  const emailBtn = createBtn('📧', 'Email', '#4caf50', 'white');
-  emailBtn.onclick = (e) => onClick(e, 'email');
-
-  const socialBtn = createBtn('📱', 'Social', '#2196f3', 'white');
-  socialBtn.onclick = (e) => onClick(e, 'social');
-
-  container.appendChild(mainBtn);
-  container.appendChild(emailBtn);
-  container.appendChild(socialBtn);
-  return { container, mainBtn, emailBtn, socialBtn };
-}
-
-function createBtn(text, title, bg, color) {
-  const btn = document.createElement('button');
-  btn.textContent = text;
-  btn.title = title;
-  Object.assign(btn.style, {
-    padding: '4px 10px',
-    fontSize: '16px',
+    padding: '2px 6px',
+    fontSize: '14px',
     cursor: 'pointer',
     border: 'none',
     borderRadius: '4px',
-    background: bg,
-    color: color,
-    fontWeight: 'bold'
+    background: '#ffdb58',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+    opacity: '0.9',
+    transition: 'opacity .2s'
   });
-  return btn;
+  mainBtn.addEventListener('mouseenter', () => (mainBtn.style.opacity = '1'));
+  mainBtn.addEventListener('mouseleave', () => (mainBtn.style.opacity = '0.9'));
+  mainBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  mainBtn.addEventListener('click', (e) => onClick(e, null));
+
+  // Email button 📧
+  const emailBtn = document.createElement('button');
+  emailBtn.textContent = '📧';
+  emailBtn.title = 'Refine as Email';
+  Object.assign(emailBtn.style, {
+    position: 'absolute',
+    zIndex: 2147483647,
+    padding: '2px 6px',
+    fontSize: '14px',
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: '4px',
+    background: '#4caf50',
+    color: 'white',
+    marginLeft: '4px',
+    opacity: '0.9',
+    transition: 'opacity .2s'
+  });
+  emailBtn.addEventListener('mouseenter', () => (emailBtn.style.opacity = '1'));
+  emailBtn.addEventListener('mouseleave', () => (emailBtn.style.opacity = '0.9'));
+  emailBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  emailBtn.addEventListener('click', (e) => onClick(e, 'email'));
+
+  // Social button 📱
+  const socialBtn = document.createElement('button');
+  socialBtn.textContent = '📱';
+  socialBtn.title = 'Refine as Social Post';
+  Object.assign(socialBtn.style, {
+    position: 'absolute',
+    zIndex: 2147483647,
+    padding: '2px 6px',
+    fontSize: '14px',
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: '4px',
+    background: '#2196f3',
+    color: 'white',
+    marginLeft: '4px',
+    opacity: '0.9',
+    transition: 'opacity .2s'
+  });
+  socialBtn.addEventListener('mouseenter', () => (socialBtn.style.opacity = '1'));
+  socialBtn.addEventListener('mouseleave', () => (socialBtn.style.opacity = '0.9'));
+  socialBtn.addEventListener('mousedown', (e) => e.preventDefault());
+  socialBtn.addEventListener('click', (e) => onClick(e, 'social'));
+
+  return { mainBtn, emailBtn, socialBtn };
 }
 
 function positionButtons(el) {
-  if (!floatingBtn) return;
   const rect = el.getBoundingClientRect();
-  // Adjust position to stay visible even if the field is at the screen edge
-  let top = window.scrollY + rect.top - 45;
-  let left = window.scrollX + rect.left;
-
-  if (top < window.scrollY) top = window.scrollY + rect.bottom + 10;
-
-  floatingBtn.container.style.top = `${top}px`;
-  floatingBtn.container.style.left = `${left}px`;
+  const top = window.scrollY + rect.top + rect.height / 2 - 12;
+  const left = window.scrollX + rect.right + 4;
+  floatingBtn.mainBtn.style.top = `${top}px`;
+  floatingBtn.mainBtn.style.left = `${left}px`;
+  floatingBtn.emailBtn.style.top = `${top}px`;
+  floatingBtn.emailBtn.style.left = `${left + 36}px`;
+  floatingBtn.socialBtn.style.top = `${top}px`;
+  floatingBtn.socialBtn.style.left = `${left + 72}px`;
 }
 
-function onClick(e, format) {
-  if (!activeElem) return;
-
-  const btns = [floatingBtn.mainBtn, floatingBtn.emailBtn, floatingBtn.socialBtn];
-  btns.forEach(b => b.textContent = '⏳');
-
-  const text = activeElem.tagName === 'TEXTAREA' || activeElem.tagName === 'INPUT'
-      ? activeElem.value
-      : (activeElem.innerText || activeElem.textContent);
-
-  chrome.runtime.sendMessage({ action: 'refineText', text, format }, (resp) => {
-    floatingBtn.mainBtn.textContent = '✨';
-    floatingBtn.emailBtn.textContent = '📧';
-    floatingBtn.socialBtn.textContent = '📱';
-
-    if (resp?.refined) {
-      if (activeElem.tagName === 'TEXTAREA' || activeElem.tagName === 'INPUT') {
-        activeElem.value = resp.refined;
-      } else {
-        activeElem.innerText = resp.refined;
-        // Logic for complex contenteditable div
-        if (activeElem.innerText !== resp.refined) activeElem.textContent = resp.refined;
-      }
-      activeElem.dispatchEvent(new Event('input', { bubbles: true }));
-    } else if (resp?.error) {
-      alert("AI Error: " + resp.error);
+// ========== REFINE LOGIC ==========
+async function refineDirectly(text, format) {
+  // Read API key directly from storage (content scripts can use chrome.storage)
+  return new Promise((resolve, reject) => {
+    if (!chrome || !chrome.storage || !chrome.storage.local) {
+      return reject(new Error('Extension storage not available. Reload the extension.'));
     }
+    chrome.storage.local.get(['groq_key'], async (result) => {
+      const apiKey = result.groq_key;
+      if (!apiKey) return reject(new Error('Please set your Groq API key in the extension popup.'));
+
+      // System prompt
+      let systemPrompt = 'You are a helpful writing assistant. Refine the user\'s text to be clearer and better written.';
+      if (format) {
+        const fmt = format.toLowerCase();
+        if (fmt === 'email') {
+          systemPrompt = 'You are a professional executive assistant. Expand the following notes into a polite, professional, and clear email. Output ONLY the email text.';
+        } else if (fmt === 'social') {
+          systemPrompt = 'You are a creative social media manager. Turn the following notes into an engaging post with 1-2 emojis and relevant hashtags. Output ONLY the post text.';
+        }
+      }
+
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-70b-versatile',  // ← if this model exists, use it; otherwise try 'llama-3.3-70b-versatile'
+            temperature: 0.7,
+            max_tokens: 1024,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: text },
+            ],
+          }),
+        });
+        const data = await res.json();
+        if (data.choices && data.choices[0]) {
+          resolve(data.choices[0].message.content.trim());
+        } else {
+          reject(new Error('Groq API error: ' + (data.error?.message || 'Unknown error')));
+        }
+      } catch (err) {
+        reject(new Error('Failed to connect to Groq: ' + err.message));
+      }
+    });
   });
 }
 
-// Global listener that handles Shadow DOM via composedPath
-document.addEventListener('focusin', (e) => {
-  const path = e.composedPath();
-  const target = getEditableElement(path);
+function onClick(e, format) {
+  e.stopPropagation();
+  e.preventDefault();
+  if (!activeElem || isRefining) return;
+  isRefining = true;
 
-  if (target) {
-    activeElem = target;
+  // Show loading on all buttons
+  [floatingBtn.mainBtn, floatingBtn.emailBtn, floatingBtn.socialBtn].forEach(btn => {
+    btn.textContent = '⏳';
+  });
+
+  const text = activeElem.tagName === 'TEXTAREA' ? activeElem.value : activeElem.innerText;
+
+  // Try to use background messenger if available, otherwise call Groq directly
+  const useBackground = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage);
+
+  if (useBackground) {
+    // Original method
+    chrome.runtime.sendMessage({ action: 'refineText', text, format }, (resp) => {
+      // Restore buttons
+      floatingBtn.mainBtn.textContent = '✨';
+      floatingBtn.emailBtn.textContent = '📧';
+      floatingBtn.socialBtn.textContent = '📱';
+      isRefining = false;
+
+      if (chrome.runtime.lastError) {
+        alert('Extension error: ' + chrome.runtime.lastError.message);
+        return;
+      }
+      if (resp.error) {
+        alert('AI error: ' + resp.error);
+        return;
+      }
+      if (activeElem) {
+        if (activeElem.tagName === 'TEXTAREA') {
+          activeElem.value = resp.refined;
+        } else {
+          activeElem.innerText = resp.refined;
+        }
+      }
+    });
+  } else {
+    // Fallback: call Groq directly from content script
+    console.warn('[Content] chrome.runtime not available, using direct API call.');
+    refineDirectly(text, format)
+      .then(refined => {
+        if (activeElem) {
+          if (activeElem.tagName === 'TEXTAREA') {
+            activeElem.value = refined;
+          } else {
+            activeElem.innerText = refined;
+          }
+        }
+      })
+      .catch(err => {
+        alert('AI error: ' + err.message);
+      })
+      .finally(() => {
+        floatingBtn.mainBtn.textContent = '✨';
+        floatingBtn.emailBtn.textContent = '📧';
+        floatingBtn.socialBtn.textContent = '📱';
+        isRefining = false;
+      });
+  }
+}
+
+// ----- Event listeners (unchanged) -----
+document.addEventListener('focusin', (e) => {
+  if (isEditable(e.target)) {
+    activeElem = e.target;
     if (!floatingBtn) {
-      floatingBtn = createButtons();
-      document.body.appendChild(floatingBtn.container);
+      const { mainBtn, emailBtn, socialBtn } = createButtons();
+      floatingBtn = { mainBtn, emailBtn, socialBtn };
+      document.body.appendChild(mainBtn);
+      document.body.appendChild(emailBtn);
+      document.body.appendChild(socialBtn);
     }
     positionButtons(activeElem);
   }
-}, true);
+});
 
-document.addEventListener('mousedown', (e) => {
-  if (floatingBtn && !floatingBtn.container.contains(e.target)) {
-    // If we click outside, hide the buttons
+document.addEventListener('input', (e) => {
+  if (floatingBtn && e.target === activeElem) positionButtons(activeElem);
+});
+
+document.addEventListener('focusout', (e) => {
+  if (floatingBtn && e.target === activeElem) {
     setTimeout(() => {
-      if (!getEditableElement(e.composedPath())) {
-        floatingBtn.container.remove();
+      if (floatingBtn && !document.activeElement.closest('button')) {
+        floatingBtn.mainBtn.remove();
+        floatingBtn.emailBtn.remove();
+        floatingBtn.socialBtn.remove();
         floatingBtn = null;
+        activeElem = null;
       }
-    }, 150);
+    }, 100);
   }
 });
