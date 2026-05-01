@@ -10,15 +10,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
 
       // 2. Determine system prompt based on the requested format
-      let systemPrompt = 'You are a helpful writing assistant. Refine the user\'s text to be clearer and better written.';
-      if (request.format) {
-        const fmt = request.format.toLowerCase();
-        if (fmt === 'email') {
-          systemPrompt = 'You are a professional executive assistant. Expand the following notes into a polite, professional, and clear email. Output ONLY the email text.';
-        } else if (fmt === 'social') {
-          systemPrompt = 'You are a creative social media manager. Turn the following notes into an engaging post with 1-2 emojis and relevant hashtags. Output ONLY the post text.';
-        }
-      }
+     let systemPrompt = 'You are a writing editor. The user will provide draft text. Your only task is to rewrite it with better grammar, clarity, and style, while keeping the original meaning. You must output ONLY the rewritten text. Do not add any preface, explanation, commentary, or ask questions. Output the refined version directly.';
+
+if (request.format) {
+  const fmt = request.format.toLowerCase();
+  if (fmt === 'email') {
+    systemPrompt = 'You are a professional executive assistant. The user will provide notes for an email. Turn them into a polite, professional, and clear email message. Output ONLY the email. Do not include any salutation like "Sure!" or "Here is your email". Just output the email body.';
+  } else if (fmt === 'social') {
+    systemPrompt = 'You are a creative social media manager. The user will provide notes for a post. Turn them into an engaging social media post with 1-2 emojis and relevant hashtags. Output ONLY the post text. Do not add commentary like "Here is your post".';
+  }
+}
 
       // 3. Call Groq API (OpenAI‑compatible endpoint)
       try {
