@@ -4,9 +4,14 @@ let activeElem = null;
 let isRefining = false;
 
 function isEditable(el) {
-  return el && (el.tagName === 'TEXTAREA' || el.isContentEditable);
+  // Now checks for standard fields AND Google Docs editor classes
+  return el && (
+    el.tagName === 'TEXTAREA' || 
+    el.isContentEditable || 
+    (el.classList && el.classList.contains('docs-texthover-caption')) ||
+    (el.closest && el.closest('.kix-app-view-editor'))
+  );
 }
-
 function createButtons() {
   // Main button ✨
   const mainBtn = document.createElement('button');
@@ -153,13 +158,30 @@ function onClick(e, format) {
     btn.textContent = '⏳';
   });
 
-  const text = activeElem.tagName === 'TEXTAREA' ? activeElem.value : activeElem.innerText;
+  // Grab text: use highlighted selection first, fallback to full text
+  const selection = window.getSelection();
+  let text = '';
+  if (selection && selection.toString().trim().length > 0) {
+    text = selection.toString();
+  } else {
+    text = activeElem.tagName === 'TEXTAREA' ? activeElem.value : activeElem.innerText;
+  }
+
+  // Helper to safely insert text back into complex editors like GDocs
+  const applyRefinedText = (refined) => {
+    if (document.queryCommandSupported('insertText')) {
+      document.execCommand('insertText', false, refined);
+    } else if (activeElem.tagName === 'TEXTAREA') {
+      activeElem.value = refined;
+    } else {
+      activeElem.innerText = refined;
+    }
+  };
 
   // Try to use background messenger if available, otherwise call Groq directly
   const useBackground = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage);
 
   if (useBackground) {
-    // Original method
     chrome.runtime.sendMessage({ action: 'refineText', text, format }, (resp) => {
       // Restore buttons
       floatingBtn.mainBtn.textContent = '✨';
@@ -175,30 +197,15 @@ function onClick(e, format) {
         alert('AI error: ' + resp.error);
         return;
       }
-      if (activeElem) {
-        if (activeElem.tagName === 'TEXTAREA') {
-          activeElem.value = resp.refined;
-        } else {
-          activeElem.innerText = resp.refined;
-        }
-      }
+      if (activeElem) applyRefinedText(resp.refined);
     });
   } else {
-    // Fallback: call Groq directly from content script
     console.warn('[Content] chrome.runtime not available, using direct API call.');
     refineDirectly(text, format)
       .then(refined => {
-        if (activeElem) {
-          if (activeElem.tagName === 'TEXTAREA') {
-            activeElem.value = refined;
-          } else {
-            activeElem.innerText = refined;
-          }
-        }
+        if (activeElem) applyRefinedText(refined);
       })
-      .catch(err => {
-        alert('AI error: ' + err.message);
-      })
+      .catch(err => alert('AI error: ' + err.message))
       .finally(() => {
         floatingBtn.mainBtn.textContent = '✨';
         floatingBtn.emailBtn.textContent = '📧';
